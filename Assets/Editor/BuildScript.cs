@@ -50,7 +50,7 @@ public static class BuildScript
     static void ConfigureAndroid()
     {
         PlayerSettings.companyName = "Vagabond";
-        PlayerSettings.productName = "Unity USPSA";   // Android home-screen label
+        PlayerSettings.productName = "Unity USPSA Match";   // Android home-screen label
 
         var android = NamedBuildTarget.Android;
         PlayerSettings.SetApplicationIdentifier(android, "com.vagabond.androidshooter");
