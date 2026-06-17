@@ -1,0 +1,52 @@
+# Unity generated / local
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# Asset meta data should only be ignored when the corresponding asset is also ignored
+!/[Aa]ssets/**/*.meta
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Gradle / Android build leftovers
+*.apk
+*.aab
+*.unitypackage
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+
+# Crashlytics / npm
+sysinfo.txt
+crashlytics-build.properties
+
+# Android/IL2CPP native build intermediates
+.utmp/
+
+# Verification screenshots (not part of the game)
+/[Aa]ssets/[Ss]creenshots/
+/[Aa]ssets/[Ss]creenshots.meta
