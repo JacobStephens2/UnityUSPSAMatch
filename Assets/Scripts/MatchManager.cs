@@ -55,7 +55,7 @@ namespace Shooter
             _music = gameObject.AddComponent<AudioSource>();
             _music.clip = ProcAudio.Music;
             _music.loop = true;
-            _music.volume = 0.20f;
+            _music.volume = 0.28f;
             _music.spatialBlend = 0f;
             _music.Play();
 
