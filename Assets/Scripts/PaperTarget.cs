@@ -33,6 +33,7 @@ namespace Shooter
             int pts = isNoShoot ? 0 : ZonePoints(worldPoint);
             _hits.Add(pts);
             SpawnHole(worldPoint);
+            AudioSource.PlayClipAtPoint(ProcAudio.PaperHit, worldPoint, 0.7f);
         }
 
         int ZonePoints(Vector3 worldPoint)

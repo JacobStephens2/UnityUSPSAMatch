@@ -37,7 +37,7 @@ namespace Shooter
         int _scoringPaperCount;
 
         AudioSource _audio;
-        AudioClip _beep, _ding;
+        AudioSource _music;
 
         void Awake() => Instance = this;
 
@@ -49,8 +49,15 @@ namespace Shooter
             foreach (var p in _papers) if (!p.isNoShoot) _scoringPaperCount++;
 
             _audio = gameObject.AddComponent<AudioSource>();
-            _beep = MakeTone(900f, 0.35f, 0.5f);
-            _ding = MakeTone(1600f, 0.12f, 0.5f);
+            _audio.playOnAwake = false;
+            _audio.spatialBlend = 0f;
+
+            _music = gameObject.AddComponent<AudioSource>();
+            _music.clip = ProcAudio.Music;
+            _music.loop = true;
+            _music.volume = 0.20f;
+            _music.spatialBlend = 0f;
+            _music.Play();
 
             if (resultsPanel != null) resultsPanel.SetActive(false);
             if (player != null) player.Freeze(true);
@@ -66,7 +73,7 @@ namespace Shooter
             SetStatus("STANDBY");
             yield return new WaitForSeconds(Random.Range(1.2f, 2.8f));
 
-            _audio.PlayOneShot(_beep);
+            _audio.PlayOneShot(ProcAudio.Buzzer);
             _startTime = Time.time;
             _state = State.Running;
             if (gun != null) gun.Active = true;
@@ -157,7 +164,7 @@ namespace Shooter
 
         public void PlayDing(Vector3 pos)
         {
-            if (_ding != null) AudioSource.PlayClipAtPoint(_ding, pos, 0.7f);
+            AudioSource.PlayClipAtPoint(ProcAudio.SteelDing, pos, 0.8f);
         }
 
         /// <summary>Hooked to the Restart button.</summary>
@@ -165,23 +172,6 @@ namespace Shooter
         {
             Time.timeScale = 1f;
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
-        }
-
-        /// <summary>Generate a short sine-wave tone so the game needs no audio assets.</summary>
-        static AudioClip MakeTone(float freq, float dur, float vol)
-        {
-            int rate = 44100;
-            int n = Mathf.Max(1, (int)(rate * dur));
-            var data = new float[n];
-            float fade = rate * 0.01f;
-            for (int i = 0; i < n; i++)
-            {
-                float env = Mathf.Min(1f, Mathf.Min(i, n - i) / fade);
-                data[i] = Mathf.Sin(2f * Mathf.PI * freq * i / rate) * vol * env;
-            }
-            var clip = AudioClip.Create("tone", n, 1, rate, false);
-            clip.SetData(data, 0);
-            return clip;
         }
     }
 }

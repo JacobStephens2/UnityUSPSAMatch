@@ -37,6 +37,7 @@ namespace Shooter
         float _reloadDoneAt;
         float _tracerOffAt;
         float _flashOffAt;
+        AudioSource _sfx;
 
         void Awake()
         {
@@ -45,6 +46,10 @@ namespace Shooter
             Ammo = magCapacity;
             if (tracer != null) tracer.enabled = false;
             if (muzzleFlash != null) muzzleFlash.enabled = false;
+
+            _sfx = gameObject.AddComponent<AudioSource>();
+            _sfx.playOnAwake = false;
+            _sfx.spatialBlend = 0f; // 2D — always audible
         }
 
         public void SetFiring(bool firing) => _firing = firing;
@@ -78,6 +83,11 @@ namespace Shooter
         {
             Ammo--;
             ShotsFired++;
+            if (_sfx != null)
+            {
+                _sfx.pitch = Random.Range(0.94f, 1.07f);
+                _sfx.PlayOneShot(ProcAudio.Gunshot, 0.45f);
+            }
             if (aimCamera == null) return;
 
             Vector3 origin = aimCamera.transform.position;
