@@ -50,10 +50,13 @@ public static class BuildScript
     static void ConfigureAndroid()
     {
         PlayerSettings.companyName = "Vagabond";
-        PlayerSettings.productName = "Android Shooter";
+        PlayerSettings.productName = "Unity USPSA";   // Android home-screen label
 
         var android = NamedBuildTarget.Android;
         PlayerSettings.SetApplicationIdentifier(android, "com.vagabond.androidshooter");
+
+        // Procedural app icon (target emblem).
+        IconGenerator.EnsureAndAssign();
         PlayerSettings.SetScriptingBackend(android, ScriptingImplementation.IL2CPP);
         PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
 

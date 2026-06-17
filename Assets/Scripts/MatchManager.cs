@@ -73,7 +73,7 @@ namespace Shooter
             SetStatus("STANDBY");
             yield return new WaitForSeconds(Random.Range(1.2f, 2.8f));
 
-            _audio.PlayOneShot(ProcAudio.Buzzer);
+            _audio.PlayOneShot(ProcAudio.Buzzer, 0.55f);
             _startTime = Time.time;
             _state = State.Running;
             if (gun != null) gun.Active = true;
