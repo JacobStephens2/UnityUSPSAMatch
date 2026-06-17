@@ -382,21 +382,29 @@ public static class SceneBuilder
         flash.raycastTarget = false;
         mm.damageFlash = flash;
 
-        var cross = MakeImage("Crosshair", canvasGo.transform, new Color(1f, 1f, 1f, 0.85f));
+        // All gameplay HUD lives inside the device safe area, so the corner
+        // readouts clear notches / camera cutouts / rounded display corners.
+        var safeGo = new GameObject("SafeArea", typeof(RectTransform));
+        safeGo.transform.SetParent(canvasGo.transform, false);
+        Stretch(safeGo.GetComponent<RectTransform>());
+        safeGo.AddComponent<Shooter.SafeArea>();
+        var hud = safeGo.transform;
+
+        var cross = MakeImage("Crosshair", hud, new Color(1f, 1f, 1f, 0.85f));
         Anchor(cross.rectTransform, C(0.5f), C(0.5f), Vector2.zero, new Vector2(8, 8));
 
-        mm.timeText = MakeText("TimeText", canvasGo.transform, "0.00", 64, TextAnchor.UpperCenter);
+        mm.timeText = MakeText("TimeText", hud, "0.00", 64, TextAnchor.UpperCenter);
         Anchor(mm.timeText.rectTransform, C(0.5f, 1), C(0.5f, 1), new Vector2(0, -30), new Vector2(420, 84));
 
-        mm.remainingText = MakeText("RemainingText", canvasGo.transform, "TARGETS 12", 34, TextAnchor.UpperLeft);
-        Anchor(mm.remainingText.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(150, -46), new Vector2(420, 50));
+        mm.remainingText = MakeText("RemainingText", hud, "TARGETS 12", 34, TextAnchor.UpperLeft);
+        Anchor(mm.remainingText.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(210, -46), new Vector2(420, 50));
 
-        mm.ammoText = MakeText("AmmoText", canvasGo.transform, "10/10", 44, TextAnchor.UpperRight);
-        Anchor(mm.ammoText.rectTransform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-150, -46), new Vector2(360, 60));
+        mm.ammoText = MakeText("AmmoText", hud, "10/10", 44, TextAnchor.UpperRight);
+        Anchor(mm.ammoText.rectTransform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-210, -46), new Vector2(360, 60));
 
         // Health bar (top-left, under TARGETS) — shown only when the stage has enemies.
-        var barBg = MakeImage("HealthBar", canvasGo.transform, new Color(0f, 0f, 0f, 0.5f));
-        Anchor(barBg.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(150, -104), new Vector2(360, 34));
+        var barBg = MakeImage("HealthBar", hud, new Color(0f, 0f, 0f, 0.5f));
+        Anchor(barBg.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(210, -104), new Vector2(360, 34));
         var fill = MakeImage("HealthFill", barBg.transform, new Color(0.3f, 0.8f, 0.35f, 0.9f));
         fill.rectTransform.anchorMin = new Vector2(0, 0);
         fill.rectTransform.anchorMax = new Vector2(1, 1);
@@ -408,21 +416,21 @@ public static class SceneBuilder
         mm.healthText = MakeText("HealthText", barBg.transform, "HP 100", 26, TextAnchor.MiddleCenter);
         Stretch(mm.healthText.rectTransform);
 
-        mm.statusText = MakeText("StatusText", canvasGo.transform, "MAKE READY", 96, TextAnchor.MiddleCenter);
+        mm.statusText = MakeText("StatusText", hud, "MAKE READY", 96, TextAnchor.MiddleCenter);
         mm.statusText.color = new Color(1f, 0.85f, 0.3f);
         Anchor(mm.statusText.rectTransform, C(0.5f), C(0.5f), new Vector2(0, 180), new Vector2(1400, 140));
 
-        var fireImg = MakeImage("FireButton", canvasGo.transform, new Color(0.9f, 0.3f, 0.3f, 0.55f));
+        var fireImg = MakeImage("FireButton", hud, new Color(0.9f, 0.3f, 0.3f, 0.55f));
         Anchor(fireImg.rectTransform, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-200, 200), new Vector2(220, 220));
         fireImg.gameObject.AddComponent<TouchFireButton>();
         Stretch(MakeText("Label", fireImg.transform, "FIRE", 44, TextAnchor.MiddleCenter).rectTransform);
 
-        var reloadImg = MakeImage("ReloadButton", canvasGo.transform, new Color(0.3f, 0.5f, 0.9f, 0.55f));
+        var reloadImg = MakeImage("ReloadButton", hud, new Color(0.3f, 0.5f, 0.9f, 0.55f));
         Anchor(reloadImg.rectTransform, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-440, 170), new Vector2(170, 130));
         reloadImg.gameObject.AddComponent<TouchReloadButton>();
         Stretch(MakeText("Label", reloadImg.transform, "RELOAD", 34, TextAnchor.MiddleCenter).rectTransform);
 
-        var hint = MakeText("Hint", canvasGo.transform,
+        var hint = MakeText("Hint", hud,
             "Left: move   Right: look   FIRE: shoot   RELOAD / R", 26, TextAnchor.LowerCenter);
         hint.color = new Color(1f, 1f, 1f, 0.5f);
         Anchor(hint.rectTransform, C(0.5f, 0), C(0.5f, 0), new Vector2(0, 26), new Vector2(1200, 40));

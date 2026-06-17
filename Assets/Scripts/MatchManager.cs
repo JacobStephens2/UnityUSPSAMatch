@@ -42,6 +42,9 @@ namespace Shooter
 
         State _state = State.Pre;
         bool _failed;
+
+        /// <summary>True only between the buzzer and stage end (enemies hold fire until then).</summary>
+        public bool IsRunning => _state == State.Running;
         float _startTime, _finalTime;
         PaperTarget[] _papers;
         SteelTarget[] _steels;
@@ -220,13 +223,22 @@ namespace Shooter
             int points = rawPoints - penalties;
             float hf = _finalTime > 0f ? Mathf.Max(0, points) / _finalTime : 0f;
 
+            bool finalStage = stageNumber >= 2;
             SetStatus("");
             if (timeText != null) timeText.text = _finalTime.ToString("0.00");
-            if (resultsTitle != null) { resultsTitle.text = "STAGE COMPLETE"; resultsTitle.color = new Color(0.4f, 0.9f, 0.5f); }
+            if (resultsTitle != null)
+            {
+                resultsTitle.text = finalStage ? "OUTLAWS DOWN!" : "STAGE COMPLETE";
+                resultsTitle.color = new Color(0.4f, 0.9f, 0.5f);
+            }
             if (resultsText != null)
             {
+                string successLine = finalStage
+                    ? "Nice shooting, hombre — the bay's clear and\nthe outlaws are down. You cleared Stage 2!\n\n"
+                    : "";
                 string outlawLine = _enemies.Length > 0 ? "outlaws " + outlaws + " / " + _enemies.Length + "\n" : "";
                 resultsText.text =
+                    successLine +
                     "TIME   " + _finalTime.ToString("0.00") + " s\n" +
                     "POINTS   " + points + "  (" + rawPoints + " - " + penalties + ")\n" +
                     "A " + a + "    C " + c + "    D " + d + "    steel " + steelDown + "\n" +

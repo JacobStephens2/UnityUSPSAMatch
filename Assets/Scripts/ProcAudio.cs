@@ -134,66 +134,80 @@ namespace Shooter
             return Clip("enemydown", d);
         }
 
-        // Background music: a driving 12-bar blues-rock boogie — distorted
-        // power-chord guitar (5-6 shuffle), overdriven bass on straight 8ths,
-        // and a synthesized kick/snare/hat kit. Loops seamlessly.
+        // Background music: a spaghetti-western theme (no 12-bar blues). An
+        // Andalusian cadence (Am–G–F–E — the classic Spanish/Western descent)
+        // under a lonesome, vibrato lead; nylon-guitar arpeggio, a galloping
+        // bass, a tremolo shimmer, and sparse percussion. Loops seamlessly.
         static AudioClip MakeMusic()
         {
-            float bpm = 128f;
+            float bpm = 100f;
             float beat = 60f / bpm;
-            int bars = 12;
-            int beatsTotal = bars * 4;
-            float dur = beat * beatsTotal;
+            int bars = 8;
+            float dur = beat * 4f * bars;
             int n = (int)(dur * Rate);
 
-            var gtr = new float[n];   // guitar (distorted)
-            var bass = new float[n];  // bass (overdriven)
-            var drum = new float[n];  // drums (clean punch)
+            var lead = new float[n];
+            var harm = new float[n];
+            var bass = new float[n];
+            var perc = new float[n];
             var rng = new System.Random(99);
 
-            // 12-bar blues in E: I=E I=E I=E I=E IV=A IV=A I=E I=E V=B IV=A I=E V=B
-            float E = 82.41f, A = 110.00f, B = 123.47f;
-            float[] barRoot = { E, E, E, E, A, A, E, E, B, A, E, B };
-            float half = beat / 2f;
+            // Am G F E, repeated. Bass roots and chord tones (an octave up).
+            float[] roots = { 110.00f, 98.00f, 87.31f, 82.41f }; // A2 G2 F2 E2
+            float[][] chord =
+            {
+                new[] { 220.00f, 261.63f, 329.63f }, // Am: A3 C4 E4
+                new[] { 196.00f, 246.94f, 293.66f }, // G : G3 B3 D4
+                new[] { 174.61f, 220.00f, 261.63f }, // F : F3 A3 C4
+                new[] { 164.81f, 207.65f, 246.94f }, // E : E3 G#3 B3
+            };
+            int[] arp = { 0, 1, 2, 1, 0, 1, 2, 1 };
 
             for (int bar = 0; bar < bars; bar++)
             {
-                float bassRoot = barRoot[bar];
-                float gRoot = bassRoot * 2f;       // guitar an octave up
-                float barStart = bar * 4f * beat;
+                float t0 = bar * 4f * beat;
+                float root = roots[bar % 4];
+                var ch = chord[bar % 4];
 
-                for (int e = 0; e < 8; e++)         // eight 8th-notes per bar
+                for (int b = 0; b < 4; b++)
                 {
-                    float start = barStart + e * half;
-                    // 5-6 boogie: 5th (7 st) on beats 1&3, 6th (9 st) on 2&4.
-                    int beatIdx = e / 2;
-                    float upper = gRoot * Semi((beatIdx % 2 == 0) ? 7 : 9);
-
-                    // Palm-muted power-chord stab (root + upper), sawtooth for grit.
-                    AddTone(gtr, start, half * 0.55f, gRoot, 0.5f, 1);
-                    AddTone(gtr, start, half * 0.55f, upper, 0.42f, 1);
-
-                    // Bass drives straight 8ths on the root, square for punch.
-                    AddTone(bass, start, half * 0.6f, bassRoot, 0.9f, 2);
+                    AddBassNote(bass, t0 + b * beat, beat * 0.5f, root, 0.9f);            // downbeat
+                    AddBassNote(bass, t0 + (b + 0.66f) * beat, beat * 0.26f, root, 0.45f); // gallop ghost
                 }
+                for (int e = 0; e < 8; e++)
+                    AddPluck(harm, t0 + e * (beat * 0.5f), beat * 0.45f, ch[arp[e]], 0.30f);
 
-                // Drums: kick on 1 & 3 (+ '&' of 3), snare backbeat on 2 & 4, hats on 8ths.
-                AddKick(drum, barStart + 0 * beat);
-                AddKick(drum, barStart + 2 * beat);
-                AddKick(drum, barStart + 2.5f * beat);
-                AddSnare(drum, barStart + 1 * beat, rng);
-                AddSnare(drum, barStart + 3 * beat, rng);
-                for (int e = 0; e < 8; e++) AddHat(drum, barStart + e * half, rng);
+                AddTremPad(harm, t0, 4f * beat, ch[0], 0.10f);
+                AddTremPad(harm, t0, 4f * beat, ch[0] * 1.5f, 0.07f);
+
+                AddKick(perc, t0);
+                AddHat(perc, t0 + 1f * beat, rng);
+                AddHat(perc, t0 + 2f * beat, rng);
+                AddHat(perc, t0 + 3f * beat, rng);
             }
 
-            // Waveshape distortion (guitar hot, bass milder), then mix + limit.
+            // Lonesome lead (startBeat, durBeats, freq) over the cadence, A harmonic
+            // minor for the Spanish colour (G# over the E chord).
+            float[][] mel =
+            {
+                new[]{ 0f,1.5f,659.25f}, new[]{ 1.5f,0.5f,587.33f}, new[]{ 2f,2f,523.25f},     // Am: E5 D5 C5
+                new[]{ 4f,1.5f,587.33f}, new[]{ 5.5f,0.5f,523.25f}, new[]{ 6f,2f,493.88f},     // G : D5 C5 B4
+                new[]{ 8f,1.5f,523.25f}, new[]{ 9.5f,0.5f,440.00f}, new[]{10f,1f,523.25f}, new[]{11f,1f,440.00f}, // F: C5 A4 C5 A4
+                new[]{12f,2f,493.88f},   new[]{14f,1f,415.30f},     new[]{15f,1f,329.63f},     // E : B4 G#4 E4
+                new[]{16f,1f,880.00f},   new[]{17f,1f,783.99f},     new[]{18f,2f,659.25f},     // Am: A5 G5 E5
+                new[]{20f,1f,783.99f},   new[]{21f,1f,698.46f},     new[]{22f,2f,587.33f},     // G : G5 F5 D5
+                new[]{24f,1.5f,698.46f}, new[]{25.5f,0.5f,659.25f}, new[]{26f,2f,523.25f},     // F : F5 E5 C5
+                new[]{28f,2f,493.88f},   new[]{30f,2f,440.00f},                                // E : B4 A4
+            };
+            foreach (var m in mel) AddLead(lead, m[0] * beat, m[1] * beat * 0.95f, m[2], 0.5f);
+
             var d = new float[n];
             for (int i = 0; i < n; i++)
             {
-                float g = (float)System.Math.Tanh(gtr[i] * 4.5f);
-                float b = (float)System.Math.Tanh(bass[i] * 2.2f);
-                float mix = g * 0.42f + b * 0.55f + drum[i] * 0.9f;
-                d[i] = (float)System.Math.Tanh(mix * 1.15f);
+                float l = (float)System.Math.Tanh(lead[i] * 1.3f);
+                float b = (float)System.Math.Tanh(bass[i] * 1.6f);
+                float mix = l * 0.5f + harm[i] * 0.5f + b * 0.6f + perc[i] * 0.45f;
+                d[i] = (float)System.Math.Tanh(mix * 1.1f);
             }
 
             float peak = 0.0001f;
@@ -204,25 +218,72 @@ namespace Shooter
             return Clip("music", d);
         }
 
-        static float Semi(int semitones) => Mathf.Pow(2f, semitones / 12f);
-
-        // wave: 0 sine, 1 saw, 2 square.
-        static void AddTone(float[] buf, float startSec, float durSec, float freq, float amp, int wave)
+        // Twangy, vibrato lead (reedy via odd harmonics) — the lonesome whistle/guitar.
+        static void AddLead(float[] buf, float startSec, float durSec, float freq, float amp)
         {
             int s = (int)(startSec * Rate);
             int len = (int)(durSec * Rate);
-            float rel = durSec * 0.3f, atk = 0.004f;
+            float atk = 0.02f, rel = durSec * 0.25f;
             for (int i = 0; i < len; i++)
             {
                 int idx = s + i;
                 if (idx < 0 || idx >= buf.Length) break;
                 float t = (float)i / Rate;
-                float cyc = freq * t;
-                float w = wave == 1 ? 2f * (cyc - Mathf.Floor(cyc)) - 1f
-                        : wave == 2 ? (Mathf.Sin(cyc * 2f * Mathf.PI) >= 0f ? 1f : -1f)
-                        : Mathf.Sin(cyc * 2f * Mathf.PI);
+                float vib = 1f + 0.012f * Mathf.Sin(2f * Mathf.PI * 5.5f * t);
+                float ph = 2f * Mathf.PI * freq * vib * t;
+                float w = (Mathf.Sin(ph) + 0.3f * Mathf.Sin(3f * ph) + 0.12f * Mathf.Sin(5f * ph)) / 1.4f;
                 float env = t < atk ? t / atk : (t > durSec - rel ? Mathf.Max(0f, (durSec - t) / rel) : 1f);
                 buf[idx] += w * amp * env;
+            }
+        }
+
+        // Nylon-guitar pluck (quick decay, a couple of harmonics).
+        static void AddPluck(float[] buf, float startSec, float durSec, float freq, float amp)
+        {
+            int s = (int)(startSec * Rate);
+            int len = (int)(durSec * Rate);
+            for (int i = 0; i < len; i++)
+            {
+                int idx = s + i;
+                if (idx < 0 || idx >= buf.Length) break;
+                float t = (float)i / Rate;
+                float env = Mathf.Exp(-t * 5.5f) * (t < 0.005f ? t / 0.005f : 1f);
+                float ph = 2f * Mathf.PI * freq * t;
+                float w = Mathf.Sin(ph) + 0.4f * Mathf.Sin(2f * ph) + 0.15f * Mathf.Sin(3f * ph);
+                buf[idx] += w * amp * env * 0.6f;
+            }
+        }
+
+        // Warm gallop bass.
+        static void AddBassNote(float[] buf, float startSec, float durSec, float freq, float amp)
+        {
+            int s = (int)(startSec * Rate);
+            int len = (int)(durSec * Rate);
+            for (int i = 0; i < len; i++)
+            {
+                int idx = s + i;
+                if (idx < 0 || idx >= buf.Length) break;
+                float t = (float)i / Rate;
+                float env = Mathf.Exp(-t * 3.5f) * (t < 0.004f ? t / 0.004f : 1f);
+                float ph = 2f * Mathf.PI * freq * t;
+                buf[idx] += (Mathf.Sin(ph) + 0.3f * Mathf.Sin(2f * ph)) * amp * env;
+            }
+        }
+
+        // Sustained tremolo shimmer (amplitude wobble) under the chord.
+        static void AddTremPad(float[] buf, float startSec, float durSec, float freq, float amp)
+        {
+            int s = (int)(startSec * Rate);
+            int len = (int)(durSec * Rate);
+            float atk = 0.05f, rel = 0.1f;
+            for (int i = 0; i < len; i++)
+            {
+                int idx = s + i;
+                if (idx < 0 || idx >= buf.Length) break;
+                float t = (float)i / Rate;
+                float trem = 0.6f + 0.4f * Mathf.Sin(2f * Mathf.PI * 8f * t);
+                float env = t < atk ? t / atk : (t > durSec - rel ? Mathf.Max(0f, (durSec - t) / rel) : 1f);
+                buf[idx] += Mathf.Sin(2f * Mathf.PI * freq * t) * amp * env * trem;
             }
         }
 
@@ -241,21 +302,6 @@ namespace Shooter
                 float body = Mathf.Sin(phase * 2f * Mathf.PI) * Mathf.Exp(-t * 30f);
                 float click = i < 4 ? 0.5f : 0f;
                 buf[idx] += body * 1.0f + click;
-            }
-        }
-
-        static void AddSnare(float[] buf, float startSec, System.Random rng)
-        {
-            int s = (int)(startSec * Rate);
-            int len = (int)(0.16f * Rate);
-            for (int i = 0; i < len; i++)
-            {
-                int idx = s + i;
-                if (idx < 0 || idx >= buf.Length) break;
-                float t = (float)i / Rate;
-                float noise = (float)(rng.NextDouble() * 2.0 - 1.0);
-                float tone = Mathf.Sin(2f * Mathf.PI * 190f * t);
-                buf[idx] += noise * 0.6f * Mathf.Exp(-t * 30f) + tone * 0.3f * Mathf.Exp(-t * 45f);
             }
         }
 

@@ -84,6 +84,15 @@ namespace Shooter
 
             if (Dead) { Topple(); return; }
 
+            // Hold until the buzzer (GO): the outlaw stands and faces you, but
+            // can't move or shoot during MAKE READY / STANDBY.
+            if (MatchManager.Instance != null && !MatchManager.Instance.IsRunning)
+            {
+                FacePlayer();
+                _nextFire = Time.time + Random.Range(0.8f, 1.6f); // delay first shot past GO
+                return;
+            }
+
             FacePlayer();
             Patrol();
 
