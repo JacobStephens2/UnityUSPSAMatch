@@ -10,13 +10,15 @@ namespace Shooter
     {
         const int Rate = 44100;
 
-        static AudioClip _gunshot, _paperHit, _steelDing, _buzzer, _music;
+        static AudioClip _gunshot, _paperHit, _steelDing, _buzzer, _music, _hurt, _enemyDown;
 
         public static AudioClip Gunshot  => _gunshot  != null ? _gunshot  : (_gunshot  = MakeGunshot());
         public static AudioClip PaperHit => _paperHit != null ? _paperHit : (_paperHit = MakePaperHit());
         public static AudioClip SteelDing => _steelDing != null ? _steelDing : (_steelDing = MakeSteelDing());
         public static AudioClip Buzzer   => _buzzer   != null ? _buzzer   : (_buzzer   = MakeBuzzer());
         public static AudioClip Music    => _music    != null ? _music    : (_music    = MakeMusic());
+        public static AudioClip Hurt     => _hurt     != null ? _hurt     : (_hurt     = MakeHurt());
+        public static AudioClip EnemyDown => _enemyDown != null ? _enemyDown : (_enemyDown = MakeEnemyDown());
 
         static AudioClip Clip(string name, float[] data)
         {
@@ -92,6 +94,44 @@ namespace Shooter
                 d[i] = sq * 0.32f * env;
             }
             return Clip("buzzer", d);
+        }
+
+        // Player hit: a low impact thump with a quick downward pitch sweep.
+        static AudioClip MakeHurt()
+        {
+            float dur = 0.28f;
+            int n = (int)(dur * Rate);
+            var d = new float[n];
+            var rng = new System.Random(13);
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / Rate;
+                float freq = Mathf.Lerp(180f, 70f, Mathf.Clamp01(t / 0.18f));
+                float body = Mathf.Sin(2f * Mathf.PI * freq * t) * Mathf.Exp(-t * 14f);
+                float noise = (float)(rng.NextDouble() * 2.0 - 1.0) * Mathf.Exp(-t * 40f);
+                d[i] = Mathf.Clamp(body * 0.8f + noise * 0.4f, -1f, 1f);
+            }
+            return Clip("hurt", d);
+        }
+
+        // Outlaw down: a body-fall thud plus a short low groan.
+        static AudioClip MakeEnemyDown()
+        {
+            float dur = 0.5f;
+            int n = (int)(dur * Rate);
+            var d = new float[n];
+            var rng = new System.Random(23);
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / Rate;
+                float groan = (Mathf.Sin(2f * Mathf.PI * 138f * t) + 0.5f * Mathf.Sin(2f * Mathf.PI * 092f * t))
+                              * Mathf.Exp(-t * 6f);
+                float thudFreq = Mathf.Lerp(90f, 45f, Mathf.Clamp01(t / 0.1f));
+                float thud = Mathf.Sin(2f * Mathf.PI * thudFreq * t) * Mathf.Exp(-t * 18f);
+                float dust = (float)(rng.NextDouble() * 2.0 - 1.0) * Mathf.Exp(-t * 9f) * 0.15f;
+                d[i] = Mathf.Clamp(groan * 0.4f + thud * 0.7f + dust, -1f, 1f);
+            }
+            return Clip("enemydown", d);
         }
 
         // Background music: a driving 12-bar blues-rock boogie — distorted

@@ -11,21 +11,21 @@ using UnityEngine;
 public static class BuildScript
 {
     const string ApkPath = "Builds/AndroidShooter.apk";
-    const string ScenePath = "Assets/Scenes/Main.unity";
+    const string Stage1Path = "Assets/Scenes/Main.unity";
+    const string Stage2Path = "Assets/Scenes/Stage2.unity";
 
     [MenuItem("Tools/Shooter/Build Android APK")]
     public static void BuildApk()
     {
-        // Make sure the scene exists (build it from code if needed).
-        if (!File.Exists(ScenePath))
-            SceneBuilder.Build();
+        // Regenerate both stages from code so the build always matches source.
+        SceneBuilder.BuildAll();
 
         ConfigureAndroid();
 
         Directory.CreateDirectory("Builds");
         var options = new BuildPlayerOptions
         {
-            scenes = new[] { ScenePath },
+            scenes = new[] { Stage1Path, Stage2Path },   // Stage 1 first (startup), then Stage 2
             locationPathName = ApkPath,
             target = BuildTarget.Android,
             targetGroup = BuildTargetGroup.Android,

@@ -106,6 +106,11 @@ namespace Shooter
                 {
                     var steel = hit.collider.GetComponentInParent<SteelTarget>();
                     if (steel != null) steel.Hit();
+                    else
+                    {
+                        var enemy = hit.collider.GetComponentInParent<Enemy>();
+                        if (enemy != null) enemy.TakeHit(hit.point);
+                    }
                 }
             }
 
