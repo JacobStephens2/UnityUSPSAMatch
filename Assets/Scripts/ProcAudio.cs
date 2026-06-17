@@ -10,15 +10,20 @@ namespace Shooter
     {
         const int Rate = 44100;
 
-        static AudioClip _gunshot, _paperHit, _steelDing, _buzzer, _music, _hurt, _enemyDown;
+        static AudioClip _gunshot, _paperHit, _steelDing, _buzzer, _music, _musicBlues, _hurt, _enemyDown;
 
         public static AudioClip Gunshot  => _gunshot  != null ? _gunshot  : (_gunshot  = MakeGunshot());
         public static AudioClip PaperHit => _paperHit != null ? _paperHit : (_paperHit = MakePaperHit());
         public static AudioClip SteelDing => _steelDing != null ? _steelDing : (_steelDing = MakeSteelDing());
         public static AudioClip Buzzer   => _buzzer   != null ? _buzzer   : (_buzzer   = MakeBuzzer());
-        public static AudioClip Music    => _music    != null ? _music    : (_music    = MakeMusic());
+        public static AudioClip MusicWestern => _music      != null ? _music      : (_music      = MakeMusic());
+        public static AudioClip MusicBlues   => _musicBlues != null ? _musicBlues : (_musicBlues = MakeBlues());
+        public static AudioClip Music    => MusicWestern; // back-compat alias
         public static AudioClip Hurt     => _hurt     != null ? _hurt     : (_hurt     = MakeHurt());
         public static AudioClip EnemyDown => _enemyDown != null ? _enemyDown : (_enemyDown = MakeEnemyDown());
+
+        /// <summary>A coin-flip between the spaghetti-western theme and the blues boogie.</summary>
+        public static AudioClip RandomMusic => UnityEngine.Random.value < 0.5f ? MusicWestern : MusicBlues;
 
         static AudioClip Clip(string name, float[] data)
         {
@@ -321,6 +326,104 @@ namespace Shooter
                 float t = (float)i / Rate;
                 float noise = (float)(rng.NextDouble() * 2.0 - 1.0);
                 buf[idx] += noise * 0.22f * Mathf.Exp(-t * 130f);
+            }
+        }
+
+        // Alternate background music: a driving 12-bar blues-rock boogie —
+        // distorted power-chord guitar (5-6 shuffle), overdriven bass on
+        // straight 8ths, and a synthesized kick/snare/hat kit. Loops seamlessly.
+        static AudioClip MakeBlues()
+        {
+            float bpm = 128f;
+            float beat = 60f / bpm;
+            int bars = 12;
+            float dur = beat * bars * 4;
+            int n = (int)(dur * Rate);
+
+            var gtr = new float[n];
+            var bass = new float[n];
+            var drum = new float[n];
+            var rng = new System.Random(99);
+
+            float E = 82.41f, A = 110.00f, B = 123.47f;
+            float[] barRoot = { E, E, E, E, A, A, E, E, B, A, E, B };
+            float half = beat / 2f;
+
+            for (int bar = 0; bar < bars; bar++)
+            {
+                float bassRoot = barRoot[bar];
+                float gRoot = bassRoot * 2f;
+                float barStart = bar * 4f * beat;
+
+                for (int e = 0; e < 8; e++)
+                {
+                    float start = barStart + e * half;
+                    int beatIdx = e / 2;
+                    float upper = gRoot * Semi((beatIdx % 2 == 0) ? 7 : 9);
+                    AddTone(gtr, start, half * 0.55f, gRoot, 0.5f, 1);
+                    AddTone(gtr, start, half * 0.55f, upper, 0.42f, 1);
+                    AddTone(bass, start, half * 0.6f, bassRoot, 0.9f, 2);
+                }
+
+                AddKick(drum, barStart + 0 * beat);
+                AddKick(drum, barStart + 2 * beat);
+                AddKick(drum, barStart + 2.5f * beat);
+                AddSnare(drum, barStart + 1 * beat, rng);
+                AddSnare(drum, barStart + 3 * beat, rng);
+                for (int e = 0; e < 8; e++) AddHat(drum, barStart + e * half, rng);
+            }
+
+            var d = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                float g = (float)System.Math.Tanh(gtr[i] * 4.5f);
+                float b = (float)System.Math.Tanh(bass[i] * 2.2f);
+                float mix = g * 0.42f + b * 0.55f + drum[i] * 0.9f;
+                d[i] = (float)System.Math.Tanh(mix * 1.15f);
+            }
+
+            float peak = 0.0001f;
+            for (int i = 0; i < n; i++) peak = Mathf.Max(peak, Mathf.Abs(d[i]));
+            float norm = 0.92f / peak;
+            for (int i = 0; i < n; i++) d[i] *= norm;
+
+            return Clip("music_blues", d);
+        }
+
+        static float Semi(int semitones) => Mathf.Pow(2f, semitones / 12f);
+
+        // wave: 0 sine, 1 saw, 2 square.
+        static void AddTone(float[] buf, float startSec, float durSec, float freq, float amp, int wave)
+        {
+            int s = (int)(startSec * Rate);
+            int len = (int)(durSec * Rate);
+            float rel = durSec * 0.3f, atk = 0.004f;
+            for (int i = 0; i < len; i++)
+            {
+                int idx = s + i;
+                if (idx < 0 || idx >= buf.Length) break;
+                float t = (float)i / Rate;
+                float cyc = freq * t;
+                float w = wave == 1 ? 2f * (cyc - Mathf.Floor(cyc)) - 1f
+                        : wave == 2 ? (Mathf.Sin(cyc * 2f * Mathf.PI) >= 0f ? 1f : -1f)
+                        : Mathf.Sin(cyc * 2f * Mathf.PI);
+                float env = t < atk ? t / atk : (t > durSec - rel ? Mathf.Max(0f, (durSec - t) / rel) : 1f);
+                buf[idx] += w * amp * env;
+            }
+        }
+
+        static void AddSnare(float[] buf, float startSec, System.Random rng)
+        {
+            int s = (int)(startSec * Rate);
+            int len = (int)(0.16f * Rate);
+            for (int i = 0; i < len; i++)
+            {
+                int idx = s + i;
+                if (idx < 0 || idx >= buf.Length) break;
+                float t = (float)i / Rate;
+                float noise = (float)(rng.NextDouble() * 2.0 - 1.0);
+                float tone = Mathf.Sin(2f * Mathf.PI * 190f * t);
+                buf[idx] += noise * 0.6f * Mathf.Exp(-t * 30f) + tone * 0.3f * Mathf.Exp(-t * 45f);
             }
         }
     }

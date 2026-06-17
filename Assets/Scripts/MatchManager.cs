@@ -67,7 +67,7 @@ namespace Shooter
             _audio.spatialBlend = 0f;
 
             _music = gameObject.AddComponent<AudioSource>();
-            _music.clip = ProcAudio.Music;
+            _music.clip = ProcAudio.RandomMusic; // coin-flip: spaghetti-western or blues boogie
             _music.loop = true;
             _music.volume = 0.28f;
             _music.spatialBlend = 0f;

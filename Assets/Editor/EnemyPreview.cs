@@ -17,13 +17,18 @@ public static class EnemyPreview
 
     public static void CheckMusic()
     {
-        var clip = Shooter.ProcAudio.Music;
+        Report("western", Shooter.ProcAudio.MusicWestern);
+        Report("blues", Shooter.ProcAudio.MusicBlues);
+    }
+
+    static void Report(string name, AudioClip clip)
+    {
         var data = new float[clip.samples];
         clip.GetData(data, 0);
         float peak = 0f; double sq = 0;
         foreach (var x in data) { peak = Mathf.Max(peak, Mathf.Abs(x)); sq += (double)x * x; }
         double rms = System.Math.Sqrt(sq / Mathf.Max(1, data.Length));
-        Debug.LogWarning($"MUSICCHECK len={clip.length:0.0}s samples={clip.samples} peak={peak:0.00} rms={rms:0.000}");
+        Debug.LogWarning($"MUSICCHECK {name} len={clip.length:0.0}s peak={peak:0.00} rms={rms:0.000}");
     }
 
     static void CaptureRanchero(string outPath)
