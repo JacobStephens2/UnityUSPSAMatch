@@ -3,107 +3,201 @@ using UnityEditor.Events;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Shooter;
 
 /// <summary>
-/// Builds the entire playable scene (arena, player rig, HUD, spawner) from code
-/// so the project carries no binary scene/prefab dependencies. Run via the
-/// Tools menu or headless: -executeMethod SceneBuilder.Build
+/// Builds the entire USPSA-style stage (bay, targets, player rig, HUD) from
+/// code — no binary scene/prefab/art dependencies. Run via Tools ▸ Shooter ▸
+/// Build Scene, or headless: -executeMethod SceneBuilder.Build
 /// </summary>
 public static class SceneBuilder
 {
     const string ScenePath = "Assets/Scenes/Main.unity";
 
+    // Paper targets: x, z, facing-yaw, isNoShoot. y is fixed (board centre 1.15).
+    static readonly float[][] Papers =
+    {
+        new[]{-6f, -2f, 180f, 0f},
+        new[]{-3.5f,-2f, 180f, 1f},   // no-shoot
+        new[]{-1f, -1f, 180f, 0f},
+        new[]{ 2f, -2f, 180f, 0f},
+        new[]{ 5f, -1f, 165f, 0f},
+        new[]{-5f,  4f, 180f, 0f},
+        new[]{-1.5f,5f, 180f, 0f},
+        new[]{ 2.5f,5f, 195f, 0f},
+        new[]{ 6f,  4f, 180f, 1f},    // no-shoot
+        new[]{ 0f,  9f, 180f, 0f},
+    };
+
+    // Steel poppers: x, z.
+    static readonly float[][] Steels =
+    {
+        new[]{-7f, 2f},
+        new[]{ 7f, 2f},
+        new[]{-3f, 8f},
+        new[]{ 3f, 8f},
+    };
+
     [MenuItem("Tools/Shooter/Build Scene")]
     public static void Build()
     {
-        EnsureTag("Enemy");
-
         var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-        BuildEnvironment();
+        BuildBay();
+        BuildLighting();
         var input = new GameObject("GameInput").AddComponent<GameInput>();
         var player = BuildPlayer(input);
-        BuildLighting();
 
-        var spawner = new GameObject("EnemySpawner").AddComponent<EnemySpawner>();
-        spawner.player = player.transform;
+        foreach (var p in Papers) BuildPaperTarget(p[0], p[1], p[2], p[3] > 0.5f);
+        foreach (var s in Steels) BuildSteel(s[0], s[1]);
 
-        var hud = BuildHud(out Text healthText, out Text scoreText,
-                           out GameObject gameOverPanel, out Text finalScoreText,
-                           out Button restartButton);
+        var hud = BuildHud(out Text timeText, out Text ammoText, out Text statusText,
+                           out Text remainingText, out GameObject resultsPanel,
+                           out Text resultsText, out Button restartButton);
 
-        var gm = new GameObject("GameManager").AddComponent<GameManager>();
-        gm.player = player.GetComponent<PlayerController>();
-        gm.playerHealth = player.GetComponent<Health>();
-        gm.healthText = healthText;
-        gm.scoreText = scoreText;
-        gm.gameOverPanel = gameOverPanel;
-        gm.finalScoreText = finalScoreText;
+        var mm = new GameObject("MatchManager").AddComponent<MatchManager>();
+        mm.player = player.GetComponent<PlayerController>();
+        mm.gun = player.GetComponent<Gun>();
+        mm.timeText = timeText;
+        mm.ammoText = ammoText;
+        mm.statusText = statusText;
+        mm.remainingText = remainingText;
+        mm.resultsPanel = resultsPanel;
+        mm.resultsText = resultsText;
 
-        // Persistent click handler so it survives scene serialization.
-        UnityEventTools.AddPersistentListener(restartButton.onClick, gm.Restart);
-        gameOverPanel.SetActive(false);
+        UnityEventTools.AddPersistentListener(restartButton.onClick, mm.Restart);
+        resultsPanel.SetActive(false);
 
         System.IO.Directory.CreateDirectory("Assets/Scenes");
         EditorSceneManager.SaveScene(scene, ScenePath);
         AddSceneToBuildSettings(ScenePath);
-        Debug.Log("[SceneBuilder] Scene built and saved to " + ScenePath);
+        Debug.Log("[SceneBuilder] USPSA stage built and saved to " + ScenePath);
     }
 
-    static void BuildEnvironment()
+    // ---------------- environment ----------------
+
+    static void BuildBay()
     {
-        // Ground
         var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
         ground.name = "Ground";
-        ground.transform.localScale = new Vector3(6f, 1f, 6f); // 60 x 60 units
-        Paint(ground, new Color(0.20f, 0.23f, 0.27f));
+        ground.transform.localScale = new Vector3(5f, 1f, 4f); // 50 x 40
+        ground.transform.position = new Vector3(0, 0, 2f);
+        Paint(ground, new Color(0.42f, 0.40f, 0.36f)); // gravel/concrete
 
-        // Perimeter walls keep the action contained.
-        float h = 3f, half = 30f, th = 1f;
-        MakeWall("Wall_N", new Vector3(0, h / 2, half), new Vector3(half * 2, h, th));
-        MakeWall("Wall_S", new Vector3(0, h / 2, -half), new Vector3(half * 2, h, th));
-        MakeWall("Wall_E", new Vector3(half, h / 2, 0), new Vector3(th, h, half * 2));
-        MakeWall("Wall_W", new Vector3(-half, h / 2, 0), new Vector3(th, h, half * 2));
+        // Berms around the bay.
+        float h = 3.5f;
+        MakeWall("Berm_N", new Vector3(0, h / 2, 16f), new Vector3(44, h, 1f), 0.30f);
+        MakeWall("Berm_S", new Vector3(0, h / 2, -14f), new Vector3(44, h, 1f), 0.30f);
+        MakeWall("Berm_E", new Vector3(22, h / 2, 1f), new Vector3(1f, h, 32f), 0.30f);
+        MakeWall("Berm_W", new Vector3(-22, h / 2, 1f), new Vector3(1f, h, 32f), 0.30f);
 
-        // A few cover blocks for visual interest.
-        var rng = new System.Random(12345);
-        for (int i = 0; i < 8; i++)
-        {
-            var box = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            box.name = "Cover_" + i;
-            float s = 1.5f + (float)rng.NextDouble() * 2f;
-            box.transform.localScale = new Vector3(s, s, s);
-            float x = (float)(rng.NextDouble() * 40 - 20);
-            float z = (float)(rng.NextDouble() * 40 - 20);
-            box.transform.position = new Vector3(x, s / 2f, z);
-            Paint(box, new Color(0.35f, 0.38f, 0.42f));
-        }
+        // A couple of waist-high vision barriers (props; they don't fully block any target).
+        MakeWall("Barrier_1", new Vector3(-2.5f, 0.9f, 1.5f), new Vector3(2.4f, 1.8f, 0.18f), 0.22f);
+        MakeWall("Barrier_2", new Vector3(3.5f, 0.9f, 6.5f), new Vector3(2.4f, 1.8f, 0.18f), 0.22f);
     }
 
-    static void MakeWall(string name, Vector3 pos, Vector3 scale)
+    static void MakeWall(string name, Vector3 pos, Vector3 scale, float grey)
     {
         var w = GameObject.CreatePrimitive(PrimitiveType.Cube);
         w.name = name;
         w.transform.position = pos;
         w.transform.localScale = scale;
-        Paint(w, new Color(0.15f, 0.16f, 0.19f));
+        Paint(w, new Color(grey, grey * 0.95f, grey * 0.85f));
     }
+
+    static void BuildLighting()
+    {
+        var sunGo = new GameObject("Directional Light");
+        var sun = sunGo.AddComponent<Light>();
+        sun.type = LightType.Directional;
+        sun.intensity = 1.15f;
+        sun.color = new Color(1f, 0.97f, 0.92f);
+        sunGo.transform.rotation = Quaternion.Euler(52f, 20f, 0f);
+        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+        RenderSettings.ambientLight = new Color(0.45f, 0.47f, 0.50f);
+    }
+
+    // ---------------- targets ----------------
+
+    static void BuildPaperTarget(float x, float z, float yaw, bool noShoot)
+    {
+        var root = new GameObject(noShoot ? "NoShoot" : "PaperTarget");
+        root.transform.position = new Vector3(x, 1.15f, z);
+        root.transform.rotation = Quaternion.Euler(0, yaw, 0);
+        var pt = root.AddComponent<PaperTarget>();
+        pt.isNoShoot = noShoot;
+
+        var board = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        board.name = "Board";
+        board.transform.SetParent(root.transform, false);
+        board.transform.localScale = new Vector3(0.46f, 0.76f, 0.06f);
+        Paint(board, noShoot ? new Color(0.93f, 0.93f, 0.93f) : new Color(0.80f, 0.67f, 0.46f));
+
+        if (!noShoot)
+        {
+            ZoneDecal(root.transform, 0.30f, 0.61f, 0.031f, new Color(0.63f, 0.51f, 0.35f)); // C
+            ZoneDecal(root.transform, 0.152f, 0.28f, 0.033f, new Color(0.42f, 0.33f, 0.22f)); // A
+        }
+        else
+        {
+            ZoneDecal(root.transform, 0.46f, 0.76f, 0.031f, new Color(0.80f, 0.15f, 0.15f)); // red frame
+            ZoneDecal(root.transform, 0.40f, 0.70f, 0.033f, new Color(0.95f, 0.95f, 0.95f)); // white field
+        }
+
+        var stand = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        stand.name = "Stand";
+        stand.transform.SetParent(root.transform, false);
+        stand.transform.localScale = new Vector3(0.05f, 0.77f, 0.05f);
+        stand.transform.localPosition = new Vector3(0f, -0.765f, 0f);
+        DestroyCollider(stand);
+        Paint(stand, new Color(0.30f, 0.22f, 0.15f));
+    }
+
+    static void ZoneDecal(Transform parent, float w, float h, float zOff, Color col)
+    {
+        var d = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        d.name = "Zone";
+        d.transform.SetParent(parent, false);
+        d.transform.localPosition = new Vector3(0f, 0f, zOff);
+        d.transform.localScale = new Vector3(w, h, 0.006f);
+        DestroyCollider(d);
+        Paint(d, col);
+    }
+
+    static void BuildSteel(float x, float z)
+    {
+        var root = new GameObject("Steel");
+        root.transform.position = new Vector3(x, 0f, z);
+        root.transform.rotation = Quaternion.Euler(0, 180f, 0);
+        root.AddComponent<SteelTarget>();
+
+        var plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        plate.name = "Plate";
+        plate.transform.SetParent(root.transform, false);
+        plate.transform.localScale = new Vector3(0.32f, 0.55f, 0.05f);
+        plate.transform.localPosition = new Vector3(0f, 0.92f, 0f);
+        Paint(plate, new Color(0.78f, 0.80f, 0.83f)); // steel
+
+        var post = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        post.name = "Post";
+        post.transform.SetParent(root.transform, false);
+        post.transform.localScale = new Vector3(0.08f, 0.65f, 0.08f);
+        post.transform.localPosition = new Vector3(0f, 0.33f, 0f);
+        DestroyCollider(post);
+        Paint(post, new Color(0.25f, 0.27f, 0.30f));
+    }
+
+    // ---------------- player ----------------
 
     static GameObject BuildPlayer(GameInput input)
     {
         var player = new GameObject("Player") { tag = "Player" };
-        player.transform.position = new Vector3(0, 1.0f, 0);
+        player.transform.position = new Vector3(0, 1.0f, -12f);
 
         var cc = player.AddComponent<CharacterController>();
         cc.height = 1.8f; cc.radius = 0.4f; cc.center = Vector3.zero;
 
-        var health = player.AddComponent<Health>();
-        health.maxHealth = 100f;
-
-        // Camera pivot (pitched) holds the camera + audio listener.
         var pivot = new GameObject("CameraPivot") { tag = "MainCamera" };
         pivot.transform.SetParent(player.transform, false);
         pivot.transform.localPosition = new Vector3(0, 0.7f, 0);
@@ -113,58 +207,35 @@ public static class SceneBuilder
         cam.clearFlags = CameraClearFlags.Skybox;
         pivot.AddComponent<AudioListener>();
 
-        // Muzzle flash light (child of camera).
         var flashGo = new GameObject("MuzzleFlash");
         flashGo.transform.SetParent(pivot.transform, false);
         flashGo.transform.localPosition = new Vector3(0.25f, -0.18f, 0.6f);
         var flash = flashGo.AddComponent<Light>();
-        flash.type = LightType.Point;
-        flash.range = 8f; flash.intensity = 3.5f;
-        flash.color = new Color(1f, 0.85f, 0.5f);
-        flash.enabled = false;
+        flash.type = LightType.Point; flash.range = 8f; flash.intensity = 3.5f;
+        flash.color = new Color(1f, 0.85f, 0.5f); flash.enabled = false;
 
-        // Tracer line.
         var tracerGo = new GameObject("Tracer");
         tracerGo.transform.SetParent(pivot.transform, false);
         var tracer = tracerGo.AddComponent<LineRenderer>();
-        var unlit = new Material(Shader.Find("Unlit/Color"));
-        unlit.color = new Color(1f, 0.95f, 0.4f);
+        var unlit = new Material(Shader.Find("Unlit/Color")) { color = new Color(1f, 0.95f, 0.4f) };
         tracer.material = unlit;
-        tracer.startWidth = 0.05f; tracer.endWidth = 0.02f;
-        tracer.numCapVertices = 2;
+        tracer.startWidth = 0.04f; tracer.endWidth = 0.015f; tracer.numCapVertices = 2;
         tracer.enabled = false;
 
         var gun = player.AddComponent<Gun>();
-        gun.aimCamera = cam;
-        gun.muzzleFlash = flash;
-        gun.tracer = tracer;
+        gun.aimCamera = cam; gun.muzzleFlash = flash; gun.tracer = tracer;
 
         var pc = player.AddComponent<PlayerController>();
-        pc.cameraPivot = pivot.transform;
-        pc.input = input;
-        pc.gun = gun;
+        pc.cameraPivot = pivot.transform; pc.input = input; pc.gun = gun;
 
         return player;
     }
 
-    static void BuildLighting()
-    {
-        var sunGo = new GameObject("Directional Light");
-        var sun = sunGo.AddComponent<Light>();
-        sun.type = LightType.Directional;
-        sun.intensity = 1.1f;
-        sun.color = new Color(1f, 0.96f, 0.9f);
-        sunGo.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
-
-        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-        RenderSettings.ambientLight = new Color(0.35f, 0.38f, 0.42f);
-    }
-
     // ---------------- HUD ----------------
 
-    static GameObject BuildHud(out Text healthText, out Text scoreText,
-                               out GameObject gameOverPanel, out Text finalScoreText,
-                               out Button restartButton)
+    static GameObject BuildHud(out Text timeText, out Text ammoText, out Text statusText,
+                               out Text remainingText, out GameObject resultsPanel,
+                               out Text resultsText, out Button restartButton)
     {
         if (Object.FindAnyObjectByType<EventSystem>() == null)
         {
@@ -182,63 +253,70 @@ public static class SceneBuilder
         scaler.matchWidthOrHeight = 0.5f;
         canvasGo.AddComponent<GraphicRaycaster>();
 
-        // Crosshair
         var cross = MakeImage("Crosshair", canvasGo.transform, new Color(1f, 1f, 1f, 0.85f));
-        Anchor(cross.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(10, 10));
+        Anchor(cross.rectTransform, C(0.5f), C(0.5f), Vector2.zero, new Vector2(8, 8));
 
-        healthText = MakeText("HealthText", canvasGo.transform, "HP 100", 40, TextAnchor.UpperLeft);
-        Anchor(healthText.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(140, -50), new Vector2(360, 60));
+        timeText = MakeText("TimeText", canvasGo.transform, "0.00", 64, TextAnchor.UpperCenter);
+        Anchor(timeText.rectTransform, C(0.5f, 1), C(0.5f, 1), new Vector2(0, -30), new Vector2(420, 84));
 
-        scoreText = MakeText("ScoreText", canvasGo.transform, "SCORE 0", 40, TextAnchor.UpperRight);
-        Anchor(scoreText.rectTransform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-140, -50), new Vector2(360, 60));
+        remainingText = MakeText("RemainingText", canvasGo.transform, "TARGETS 12", 34, TextAnchor.UpperLeft);
+        Anchor(remainingText.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(150, -46), new Vector2(420, 50));
 
-        // Fire button (bottom-right, large for thumbs).
+        ammoText = MakeText("AmmoText", canvasGo.transform, "10/10", 44, TextAnchor.UpperRight);
+        Anchor(ammoText.rectTransform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-150, -46), new Vector2(360, 60));
+
+        statusText = MakeText("StatusText", canvasGo.transform, "MAKE READY", 96, TextAnchor.MiddleCenter);
+        statusText.color = new Color(1f, 0.85f, 0.3f);
+        Anchor(statusText.rectTransform, C(0.5f), C(0.5f), new Vector2(0, 180), new Vector2(1200, 140));
+
+        // Fire (bottom-right) + Reload (left of it).
         var fireImg = MakeImage("FireButton", canvasGo.transform, new Color(0.9f, 0.3f, 0.3f, 0.55f));
         Anchor(fireImg.rectTransform, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-200, 200), new Vector2(220, 220));
         fireImg.gameObject.AddComponent<TouchFireButton>();
-        var fireLabel = MakeText("Label", fireImg.transform, "FIRE", 44, TextAnchor.MiddleCenter);
-        Stretch(fireLabel.rectTransform);
+        Stretch(MakeText("Label", fireImg.transform, "FIRE", 44, TextAnchor.MiddleCenter).rectTransform);
 
-        // Hint text for movement/look zones.
+        var reloadImg = MakeImage("ReloadButton", canvasGo.transform, new Color(0.3f, 0.5f, 0.9f, 0.55f));
+        Anchor(reloadImg.rectTransform, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-440, 170), new Vector2(170, 130));
+        reloadImg.gameObject.AddComponent<TouchReloadButton>();
+        Stretch(MakeText("Label", reloadImg.transform, "RELOAD", 34, TextAnchor.MiddleCenter).rectTransform);
+
         var hint = MakeText("Hint", canvasGo.transform,
-            "Left side: move    Right side: look    FIRE: shoot", 26, TextAnchor.LowerCenter);
+            "Left: move   Right: look   FIRE: shoot   RELOAD / R", 26, TextAnchor.LowerCenter);
         hint.color = new Color(1f, 1f, 1f, 0.5f);
-        Anchor(hint.rectTransform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 30), new Vector2(1100, 40));
+        Anchor(hint.rectTransform, C(0.5f, 0), C(0.5f, 0), new Vector2(0, 26), new Vector2(1200, 40));
 
-        // Game Over panel
-        gameOverPanel = MakeImage("GameOverPanel", canvasGo.transform, new Color(0f, 0f, 0f, 0.85f)).gameObject;
-        Stretch(gameOverPanel.GetComponent<RectTransform>());
+        // Results panel
+        resultsPanel = MakeImage("ResultsPanel", canvasGo.transform, new Color(0f, 0f, 0f, 0.86f)).gameObject;
+        Stretch(resultsPanel.GetComponent<RectTransform>());
 
-        var goTitle = MakeText("Title", gameOverPanel.transform, "GAME OVER", 90, TextAnchor.MiddleCenter);
-        Anchor(goTitle.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 140), new Vector2(900, 140));
-        goTitle.color = new Color(1f, 0.4f, 0.4f);
+        var title = MakeText("Title", resultsPanel.transform, "STAGE COMPLETE", 76, TextAnchor.MiddleCenter);
+        title.color = new Color(0.4f, 0.9f, 0.5f);
+        Anchor(title.rectTransform, C(0.5f), C(0.5f), new Vector2(0, 250), new Vector2(1200, 110));
 
-        finalScoreText = MakeText("FinalScore", gameOverPanel.transform, "Score 0   Kills 0", 48, TextAnchor.MiddleCenter);
-        Anchor(finalScoreText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 20), new Vector2(900, 80));
+        resultsText = MakeText("ResultsText", resultsPanel.transform, "", 44, TextAnchor.MiddleCenter);
+        Anchor(resultsText.rectTransform, C(0.5f), C(0.5f), new Vector2(0, -10), new Vector2(1200, 420));
 
-        var btnImg = MakeImage("RestartButton", gameOverPanel.transform, new Color(0.25f, 0.55f, 0.95f, 1f));
-        Anchor(btnImg.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, -120), new Vector2(360, 110));
+        var btnImg = MakeImage("RestartButton", resultsPanel.transform, new Color(0.25f, 0.55f, 0.95f, 1f));
+        Anchor(btnImg.rectTransform, C(0.5f), C(0.5f), new Vector2(0, -300), new Vector2(360, 110));
         restartButton = btnImg.gameObject.AddComponent<Button>();
-        var btnLabel = MakeText("Label", btnImg.transform, "RESTART", 44, TextAnchor.MiddleCenter);
-        Stretch(btnLabel.rectTransform);
+        Stretch(MakeText("Label", btnImg.transform, "RUN AGAIN", 44, TextAnchor.MiddleCenter).rectTransform);
 
         return canvasGo;
     }
 
-    static Font UiFont()
-    {
-        return Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-    }
+    // ---------------- helpers ----------------
+
+    static Vector2 C(float v) => new Vector2(v, v);
+    static Vector2 C(float a, float b) => new Vector2(a, b);
+
+    static Font UiFont() => Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
     static Text MakeText(string name, Transform parent, string content, int size, TextAnchor align)
     {
         var go = new GameObject(name, typeof(RectTransform));
         go.transform.SetParent(parent, false);
         var t = go.AddComponent<Text>();
-        t.text = content;
-        t.font = UiFont();
-        t.fontSize = size;
-        t.alignment = align;
+        t.text = content; t.font = UiFont(); t.fontSize = size; t.alignment = align;
         t.color = Color.white;
         t.horizontalOverflow = HorizontalWrapMode.Overflow;
         t.verticalOverflow = VerticalWrapMode.Overflow;
@@ -256,41 +334,28 @@ public static class SceneBuilder
 
     static void Anchor(RectTransform rt, Vector2 min, Vector2 max, Vector2 anchoredPos, Vector2 size)
     {
-        rt.anchorMin = min;
-        rt.anchorMax = max;
-        rt.pivot = new Vector2(0.5f, 0.5f);
-        rt.anchoredPosition = anchoredPos;
-        rt.sizeDelta = size;
+        rt.anchorMin = min; rt.anchorMax = max; rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = anchoredPos; rt.sizeDelta = size;
     }
 
     static void Stretch(RectTransform rt)
     {
-        rt.anchorMin = Vector2.zero;
-        rt.anchorMax = Vector2.one;
-        rt.offsetMin = Vector2.zero;
-        rt.offsetMax = Vector2.zero;
+        rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
     }
-
-    // ---------------- helpers ----------------
 
     static void Paint(GameObject go, Color color)
     {
         var r = go.GetComponent<Renderer>();
         if (r == null) return;
         var shader = Shader.Find("Standard") ?? Shader.Find("Universal Render Pipeline/Lit");
-        var mat = new Material(shader) { color = color };
-        r.sharedMaterial = mat;
+        r.sharedMaterial = new Material(shader) { color = color };
     }
 
-    static void EnsureTag(string tag)
+    static void DestroyCollider(GameObject go)
     {
-        var so = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
-        var tags = so.FindProperty("tags");
-        for (int i = 0; i < tags.arraySize; i++)
-            if (tags.GetArrayElementAtIndex(i).stringValue == tag) return;
-        tags.InsertArrayElementAtIndex(tags.arraySize);
-        tags.GetArrayElementAtIndex(tags.arraySize - 1).stringValue = tag;
-        so.ApplyModifiedProperties();
+        var c = go.GetComponent<Collider>();
+        if (c != null) Object.DestroyImmediate(c);
     }
 
     static void AddSceneToBuildSettings(string path)

@@ -5,9 +5,9 @@ namespace Shooter
 {
     /// <summary>
     /// Unified input for desktop (keyboard + mouse) and mobile (touch).
-    /// Mobile scheme: left half of the screen is a floating move-joystick,
-    /// right half is a look-drag area, and the on-screen Fire button feeds
-    /// <see cref="FireButtonHeld"/>. Exposes Move / Look / Fire / Jump each frame.
+    /// Mobile: left half = floating move-joystick, right half = look-drag,
+    /// on-screen FIRE button feeds <see cref="FireButtonHeld"/>, RELOAD button
+    /// calls <see cref="QueueReload"/>. Exposes Move / Look / Fire / Reload.
     /// </summary>
     public class GameInput : MonoBehaviour
     {
@@ -21,19 +21,20 @@ namespace Shooter
         public Vector2 Move { get; private set; }
         public Vector2 Look { get; private set; }
         public bool Fire { get; private set; }
-        public bool Jump { get; private set; }
+        public bool Reload { get; private set; }   // true for one frame
 
         /// <summary>Set by the on-screen Fire button (mobile).</summary>
         public bool FireButtonHeld { get; set; }
 
+        bool _reloadQueued;
         int _moveFinger = -1;
         Vector2 _moveStart;
         int _lookFinger = -1;
 
-        void Awake()
-        {
-            Instance = this;
-        }
+        void Awake() => Instance = this;
+
+        /// <summary>Called by the on-screen Reload button (mobile).</summary>
+        public void QueueReload() => _reloadQueued = true;
 
         void Update()
         {
@@ -41,6 +42,9 @@ namespace Shooter
                 ReadTouch();
             else
                 ReadDesktop();
+
+            Reload = _reloadQueued || Input.GetKeyDown(KeyCode.R);
+            _reloadQueued = false;
         }
 
         void ReadDesktop()
@@ -49,7 +53,6 @@ namespace Shooter
             if (Move.sqrMagnitude > 1f) Move = Move.normalized;
             Look = new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y")) * mouseLookSpeed;
             Fire = Input.GetMouseButton(0) || FireButtonHeld;
-            Jump = Input.GetButton("Jump");
         }
 
         void ReadTouch()
@@ -63,7 +66,6 @@ namespace Shooter
             {
                 Touch t = Input.GetTouch(i);
 
-                // Ignore touches that are interacting with UI (e.g. the Fire button).
                 if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(t.fingerId))
                 {
                     if (t.fingerId == _moveFinger) _moveFinger = -1;
@@ -82,7 +84,7 @@ namespace Shooter
                     }
                     if (t.fingerId == _moveFinger)
                     {
-                        if (ending) { _moveFinger = -1; }
+                        if (ending) _moveFinger = -1;
                         else
                         {
                             Vector2 d = (t.position - _moveStart) / radius;
@@ -97,7 +99,7 @@ namespace Shooter
                         _lookFinger = t.fingerId;
                     if (t.fingerId == _lookFinger)
                     {
-                        if (ending) { _lookFinger = -1; }
+                        if (ending) _lookFinger = -1;
                         else look += t.deltaPosition * touchLookSpeed;
                     }
                 }
@@ -106,7 +108,6 @@ namespace Shooter
             Move = move;
             Look = look;
             Fire = FireButtonHeld;
-            Jump = false;
         }
     }
 }
