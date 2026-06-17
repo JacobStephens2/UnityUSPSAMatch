@@ -169,10 +169,11 @@ namespace Shooter
                 float root = roots[bar % 4];
                 var ch = chord[bar % 4];
 
+                float fifth = root * 1.5f;
                 for (int b = 0; b < 4; b++)
                 {
-                    AddBassNote(bass, t0 + b * beat, beat * 0.5f, root, 0.9f);            // downbeat
-                    AddBassNote(bass, t0 + (b + 0.66f) * beat, beat * 0.26f, root, 0.45f); // gallop ghost
+                    AddBassNote(bass, t0 + b * beat, beat * 0.46f, root, 0.9f);          // beat: root
+                    AddBassNote(bass, t0 + (b + 0.5f) * beat, beat * 0.34f, fifth, 0.5f); // 'and': fifth
                 }
                 for (int e = 0; e < 8; e++)
                     AddPluck(harm, t0 + e * (beat * 0.5f), beat * 0.45f, ch[arp[e]], 0.30f);
@@ -229,9 +230,12 @@ namespace Shooter
                 int idx = s + i;
                 if (idx < 0 || idx >= buf.Length) break;
                 float t = (float)i / Rate;
-                float vib = 1f + 0.012f * Mathf.Sin(2f * Mathf.PI * 5.5f * t);
+                // Gentle, slow vibrato that eases in (no fast warble at the attack).
+                float vibDepth = 0.005f * Mathf.Clamp01(t / 0.25f);
+                float vib = 1f + vibDepth * Mathf.Sin(2f * Mathf.PI * 4.6f * t);
                 float ph = 2f * Mathf.PI * freq * vib * t;
-                float w = (Mathf.Sin(ph) + 0.3f * Mathf.Sin(3f * ph) + 0.12f * Mathf.Sin(5f * ph)) / 1.4f;
+                // Warmer/rounder tone (octave + soft fifth-ish), less reedy.
+                float w = (Mathf.Sin(ph) + 0.18f * Mathf.Sin(2f * ph) + 0.06f * Mathf.Sin(3f * ph)) / 1.24f;
                 float env = t < atk ? t / atk : (t > durSec - rel ? Mathf.Max(0f, (durSec - t) / rel) : 1f);
                 buf[idx] += w * amp * env;
             }
@@ -281,7 +285,8 @@ namespace Shooter
                 int idx = s + i;
                 if (idx < 0 || idx >= buf.Length) break;
                 float t = (float)i / Rate;
-                float trem = 0.6f + 0.4f * Mathf.Sin(2f * Mathf.PI * 8f * t);
+                // Subtle, slow swell instead of a fast wobble.
+                float trem = 0.88f + 0.12f * Mathf.Sin(2f * Mathf.PI * 2.2f * t);
                 float env = t < atk ? t / atk : (t > durSec - rel ? Mathf.Max(0f, (durSec - t) / rel) : 1f);
                 buf[idx] += Mathf.Sin(2f * Mathf.PI * freq * t) * amp * env * trem;
             }

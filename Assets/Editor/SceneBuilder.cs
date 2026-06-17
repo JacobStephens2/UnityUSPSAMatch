@@ -390,7 +390,10 @@ public static class SceneBuilder
         safeGo.AddComponent<Shooter.SafeArea>();
         var hud = safeGo.transform;
 
-        var cross = MakeImage("Crosshair", hud, new Color(1f, 1f, 1f, 0.85f));
+        // Crosshair stays on the FULL-SCREEN canvas (not the safe area): the gun
+        // raycasts through the camera's forward = true screen centre, so the
+        // crosshair must sit at screen centre or shots drift off it.
+        var cross = MakeImage("Crosshair", canvasGo.transform, new Color(1f, 1f, 1f, 0.85f));
         Anchor(cross.rectTransform, C(0.5f), C(0.5f), Vector2.zero, new Vector2(8, 8));
 
         mm.timeText = MakeText("TimeText", hud, "0.00", 64, TextAnchor.UpperCenter);
